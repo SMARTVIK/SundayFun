@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Assignment</string>
+    <string name="camera_app_not_installed">Camera app not installed on device</string>
+    <string name="low_storage_error">Low storage</string>
+</resources>
