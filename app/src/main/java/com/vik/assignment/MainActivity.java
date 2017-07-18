@@ -5,9 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
-import android.database.Cursor;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -19,11 +17,12 @@ import android.support.v4.content.FileProvider;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.util.SparseArray;
+import android.view.View;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.google.android.gms.vision.CameraSource;
 import com.google.android.gms.vision.Frame;
 import com.google.android.gms.vision.text.TextBlock;
 import com.google.android.gms.vision.text.TextRecognizer;
@@ -34,45 +33,72 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 public class MainActivity extends AppCompatActivity {
-
-    private static final int CAPTURE_IMAGE = 1001;
     private static final String TAG = MainActivity.class.getSimpleName();
     private static final int FILE_PERMISSION = 201;
     private Bitmap mBitmap;
-    private CameraSource mCameraSource;
+    private DatabaseHelper mDatabaseHelper;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        mDatabaseHelper = new DatabaseHelper(this);
+        DataController.getInstance().setDataBaseInstance(mDatabaseHelper);
+        initViews();
         checkPhotoPermission();
+    }
+
+    private void initViews() {
+        if(mBitmap == null){
+            findViewById(R.id.save_to_device).setEnabled(false);
+        }
+
+        findViewById(R.id.save_to_device).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                EditText description = (EditText) findViewById(R.id.text);
+                if (description.getText().length() > 0) {
+                    ImageTagModel imageTagModel = new ImageTagModel();
+                    imageTagModel.setImagePath(mCurrentPhotoPath);
+                    imageTagModel.setTags(description.getText().toString());
+                    mDatabaseHelper.saveImageToDb(imageTagModel);
+                    Toast.makeText(MainActivity.this,"Image saved successfully",Toast.LENGTH_SHORT).show();
+                }else{
+                    Toast.makeText(MainActivity.this,"Please add some tags",Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+
+
+        findViewById(R.id.search_from_device).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(MainActivity.this,SearchActivity.class));
+            }
+        });
     }
 
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if(requestCode == FILE_PERMISSION && grantResults.length>0 && grantResults[0]==PackageManager.PERMISSION_GRANTED){
+        if(requestCode == FILE_PERMISSION && grantResults.length>1 && grantResults[0]==PackageManager.PERMISSION_GRANTED && grantResults[1]==PackageManager.PERMISSION_GRANTED){
            writeToExternalStorage();
-            openCamera();
         }
     }
 
 
     private void writeToExternalStorage() {
-        try {
-            createImageFile();
-            openCamera();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        openCamera();
     }
 
     private void checkPhotoPermission() {
         if (Build.VERSION.SDK_INT >= 23) {
             int photoPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE);
-            if (photoPermission != PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, FILE_PERMISSION);
+            int cameraPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA);
+            if (photoPermission != PackageManager.PERMISSION_GRANTED && cameraPermission!=PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE,Manifest.permission.CAMERA}, FILE_PERMISSION);
             } else {
                 writeToExternalStorage();
             }
@@ -84,18 +110,17 @@ public class MainActivity extends AppCompatActivity {
     static final int REQUEST_TAKE_PHOTO = 1;
 
     private void openCamera() {
-        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-        if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
+        Intent takePhoto = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        if (takePhoto.resolveActivity(getPackageManager()) != null) {
             File photoFile = null;
             try {
                 photoFile = createImageFile();
             } catch (IOException ex) {
-                // Error occurred while creating the File
             }
             if (photoFile != null) {
                 Uri photoURI = FileProvider.getUriForFile(this, "com.vik.assignment.fileprovider", photoFile);
-                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
-                startActivityForResult(takePictureIntent, REQUEST_TAKE_PHOTO);
+                takePhoto.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
+                startActivityForResult(takePhoto, REQUEST_TAKE_PHOTO);
             }
         }
     }
@@ -103,49 +128,28 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_TAKE_PHOTO && resultCode == RESULT_OK && null != data) {
-            Uri selectedImage = data.getData();
-            if (selectedImage == null) {
-                mBitmap = (Bitmap) data.getExtras().get("data");
+        if (requestCode == REQUEST_TAKE_PHOTO && resultCode == RESULT_OK) {
+            Uri selectedImage = Uri.fromFile(new File(mCurrentPhotoPath));
+            try {
+                mBitmap = MediaStore.Images.Media.getBitmap(this.getContentResolver(),selectedImage);
+                if(mBitmap != null){
+                    findViewById(R.id.save_to_device).setEnabled(true);
+                }
                 ImageView myImage = (ImageView) findViewById(R.id.image);
                 myImage.setImageBitmap(mBitmap);
-                createCameraSource(true, true);
-            } else {
-                String[] filePathColumn = {MediaStore.Images.Media.DATA};
-                Cursor cursor = getContentResolver().query(selectedImage, filePathColumn, null, null, null);
-                cursor.moveToFirst();
-                int columnIndex = cursor.getColumnIndex(filePathColumn[0]);
-                String imageFullPathAndName = cursor.getString(columnIndex);
-                setImage(imageFullPathAndName);
-                cursor.close();
+                createCameraSource();
+            } catch (IOException e) {
+                e.printStackTrace();
             }
         }
     }
 
-    private void setImage(String imagePAth) {
-        File imgFile = new File(imagePAth);
-        if (imgFile.exists()) {
-            mBitmap = BitmapFactory.decodeFile(imgFile.getAbsolutePath());
-            ImageView myImage = (ImageView) findViewById(R.id.image);
-            myImage.setImageBitmap(mBitmap);
-            createCameraSource(true, true);
-        }
-    }
-
-    private void createCameraSource(boolean autoFocus, boolean useFlash) {
+    private void createCameraSource() {
         Context context = getApplicationContext();
-        // TODO: Create the TextRecognizer
         TextRecognizer textRecognizer = new TextRecognizer.Builder(context).build();
-
-        // Check if the TextRecognizer is operational.
         if (!textRecognizer.isOperational()) {
-            Log.w(TAG, "Detector dependencies are not yet available.");
-
-            // Check for low storage.  If there is low storage, the native library will not be
-            // downloaded, so detection will not become operational.
             IntentFilter lowstorageFilter = new IntentFilter(Intent.ACTION_DEVICE_STORAGE_LOW);
             boolean hasLowStorage = registerReceiver(null, lowstorageFilter) != null;
-
             if (hasLowStorage) {
                 Toast.makeText(this, R.string.low_storage_error, Toast.LENGTH_LONG).show();
                 Log.w(TAG, getString(R.string.low_storage_error));
@@ -153,30 +157,19 @@ public class MainActivity extends AppCompatActivity {
         } else {
             Frame imageFrame = new Frame.Builder().setBitmap(mBitmap).build();
             SparseArray<TextBlock> textBlocksSparseArray = textRecognizer.detect(imageFrame);
-
             Toast.makeText(this, textBlocksSparseArray.size() + "", Toast.LENGTH_LONG).show();
             String imageText = null;
             for (int i = 0; i < textBlocksSparseArray.size(); i++) {
                 TextBlock textBlock = textBlocksSparseArray.get(textBlocksSparseArray.keyAt(i));
                 imageText = imageText + textBlock.getValue();                   // return string
             }
-            ((TextView) findViewById(R.id.text)).setText(imageText);
+            ((TextView) findViewById(R.id.text_in_image)).setText(imageText);
         }
-/*
-
-        // Create the mCameraSource using the TextRecognizer.
-        mCameraSource = new CameraSource.Builder(getApplicationContext(), textRecognizer)
-                        .setFacing(CameraSource.CAMERA_FACING_BACK)
-                        .setRequestedPreviewSize(1280, 1024)
-                        .setRequestedFps(15.0f)
-                        .build();
-*/
     }
 
     String mCurrentPhotoPath;
 
     private File createImageFile() throws IOException {
-        // Create an image file name
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
         String imageFileName = "JPEG_" + timeStamp + "_";
         File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
@@ -185,8 +178,6 @@ public class MainActivity extends AppCompatActivity {
                 ".jpg",         /* suffix */
                 storageDir      /* directory */
         );
-
-        // Save a file: path for use with ACTION_VIEW intents
         mCurrentPhotoPath = image.getAbsolutePath();
         return image;
     }
