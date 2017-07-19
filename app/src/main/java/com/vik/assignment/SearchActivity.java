@@ -34,7 +34,8 @@ public class SearchActivity extends AppCompatActivity {
         linearLayoutManager.setOrientation(LinearLayoutManager.VERTICAL);
         recyclerView.setLayoutManager(linearLayoutManager);
         recyclerView.setAdapter(searchImageAdapter);
-        searchImageAdapter.setSearchData(DataController.getInstance().getDataBaseInstance().getAllImages());
+        mainList = DataController.getInstance().getDataBaseInstance().getAllImages();
+        searchImageAdapter.setSearchData(mainList);
         editText.addTextChangedListener(new TextWatcher() {
 
             @Override
@@ -56,12 +57,21 @@ public class SearchActivity extends AppCompatActivity {
                     timer.schedule(new TimerTask() {
                         @Override
                         public void run() {
-                            searchImageAdapter.setSearchData(DataController.getInstance().getDataBaseInstance().getImageWithTags(s.toString().trim()));
+                            postData(s);
                         }
                     }, 500);
                 } else {
                     searchImageAdapter.setSearchData(mainList);
                 }
+            }
+        });
+    }
+
+    private void postData(final Editable s) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                searchImageAdapter.setSearchData(DataController.getInstance().getDataBaseInstance().getImageWithTags(s.toString().trim()));
             }
         });
     }

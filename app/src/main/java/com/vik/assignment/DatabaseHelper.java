@@ -71,20 +71,23 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     /**
      * get single todo
      */
-    public ArrayList<ImageTagModel> getImageWithTags(String userId) {
+    public ArrayList<ImageTagModel> getImageWithTags(String tag) {
         ArrayList<ImageTagModel> imageTagModels = new ArrayList<ImageTagModel>();
         SQLiteDatabase db = this.getReadableDatabase();
-        String selectQuery = "SELECT * FROM TABLE " + TABLE_IMAGES + " WHERE " + KEY_TAGS + " LIKE " + "'%" + userId + "%'";
-        Log.e(LOG, selectQuery);
-        Cursor c = db.rawQuery(selectQuery, null);
-        if (c.moveToFirst()) {
-            do {
+//        String selectQuery = "SELECT * FROM TABLE " + TABLE_IMAGES + " WHERE " + KEY_TAGS + " LIKE " + "('%" + userId + "%')";
+//        Log.e(LOG, selectQuery);
+//        Cursor c = db.rawQuery(selectQuery, null);
+        Cursor c = db.query(TABLE_IMAGES, new String[] {KEY_IMAGE_PATH,KEY_CREATED_DATE,KEY_TAGS}, KEY_TAGS + " LIKE ?", new String[] {"%" + tag + "%"}, null, null, null);
+        if (c!=null && c.moveToFirst()) {
+
+            do{
                 ImageTagModel imageTagModel = new ImageTagModel();
                 imageTagModel.setImagePath((c.getString(c.getColumnIndex(KEY_IMAGE_PATH))));
                 imageTagModel.setTags((c.getString(c.getColumnIndex(KEY_TAGS))));
                 imageTagModel.setCreatedAt(c.getString(c.getColumnIndex(KEY_CREATED_DATE)));
                 imageTagModels.add(imageTagModel);
-            } while (c.moveToNext());
+            }while (c.moveToNext());
+
         }
         return imageTagModels;
     }

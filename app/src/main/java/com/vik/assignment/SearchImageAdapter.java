@@ -30,7 +30,7 @@ public class SearchImageAdapter extends RecyclerView.Adapter<SearchImageAdapter.
     public void onBindViewHolder(SearchImageAdapter.ViewHolder holder, int position) {
         ImageTagModel imageTagModel = models.get(position);
         Uri uri = Uri.fromFile(new File(models.get(position).getImagePath()));
-        Picasso.with(holder.itemView.getContext()).load(uri).placeholder(R.mipmap.ic_launcher).into(holder.image);
+        Picasso.with(holder.itemView.getContext()).load(uri).resize(50,50).placeholder(R.mipmap.ic_launcher).into(holder.image);
         holder.tags.setText(imageTagModel.getTags());
     }
 

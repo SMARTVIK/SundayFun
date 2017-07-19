@@ -64,6 +64,8 @@ public class MainActivity extends AppCompatActivity {
                     imageTagModel.setTags(description.getText().toString());
                     mDatabaseHelper.saveImageToDb(imageTagModel);
                     Toast.makeText(MainActivity.this,"Image saved successfully",Toast.LENGTH_SHORT).show();
+                    description.setText("");
+                    ((TextView)findViewById(R.id.text_in_image)).setText("");
                 }else{
                     Toast.makeText(MainActivity.this,"Please add some tags",Toast.LENGTH_SHORT).show();
                 }
@@ -77,6 +79,14 @@ public class MainActivity extends AppCompatActivity {
                 startActivity(new Intent(MainActivity.this,SearchActivity.class));
             }
         });
+
+        findViewById(R.id.capture_image).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                checkPhotoPermission();
+            }
+        });
+
     }
 
 
@@ -97,8 +107,8 @@ public class MainActivity extends AppCompatActivity {
         if (Build.VERSION.SDK_INT >= 23) {
             int photoPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE);
             int cameraPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA);
-            if (photoPermission != PackageManager.PERMISSION_GRANTED && cameraPermission!=PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE,Manifest.permission.CAMERA}, FILE_PERMISSION);
+            if (photoPermission != PackageManager.PERMISSION_GRANTED && cameraPermission != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.CAMERA}, FILE_PERMISSION);
             } else {
                 writeToExternalStorage();
             }
